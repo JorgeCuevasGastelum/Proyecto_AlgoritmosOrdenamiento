@@ -12,12 +12,14 @@ import org.jfree.chart.renderer.category.StandardBarPainter;
 import org.jfree.data.category.DefaultCategoryDataset;
 
 import javax.swing.*;
+import javax.swing.border.Border;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.text.DecimalFormat;
 import java.util.List;
+import java.util.function.ToDoubleFunction;
 
 /**
  * Pantalla de resultados: muestra la tabla comparativa (tiempo, comparaciones e
@@ -40,6 +42,12 @@ public class VentanaResultados extends JFrame {
     private static final Color COLOR_ENCABEZADO_TABLA = COLOR_TEXTO_OSCURO;       // encabezado tabla: cafe oscuro
     private static final Color COLOR_BARRA_NORMAL = new Color(0xD8, 0xB9, 0x8F);  // tostado suave (misma familia calida)
     private static final Color COLOR_BARRA_MEJOR = new Color(0x6F, 0xAF, 0xC7);   // azul un poco mas intenso que el acento
+
+    // Mismo borde tipo "tarjeta" que en VentanaPrincipal, para que ambas
+    // pantallas compartan el mismo lenguaje visual (linea azul de acento + relleno).
+    private static final Border BORDE_TARJETA = BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(COLOR_PANEL_AZUL, 2),
+            new EmptyBorder(20, 20, 20, 20));
 
     private final List<ResultadoOrdenamiento> resultados;
     private final int tamanoArreglo;
@@ -82,7 +90,7 @@ public class VentanaResultados extends JFrame {
     private JPanel construirPanelTabla() {
         JPanel panel = new JPanel(new BorderLayout(10, 15));
         panel.setBackground(COLOR_PANEL_CLARO);
-        panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        panel.setBorder(BORDE_TARJETA);
 
         JLabel titulo = new JLabel("Tabla de Resultados");
         titulo.setFont(new Font("SansSerif", Font.BOLD, 20));
@@ -164,23 +172,101 @@ public class VentanaResultados extends JFrame {
         return panel;
     }
 
+    /**
+     * Panel derecho: encabezado + un selector de metrica (Tiempo / Comparaciones /
+     * Intercambios) que cambia, con CardLayout, cual grafica de barras se muestra.
+     * Se usa una fila de botones en vez de JTabbedPane para poder pintarla con
+     * exactamente la misma paleta de colores del resto de la app (el look nativo
+     * de JTabbedPane en Windows no respeta bien los colores personalizados).
+     */
     private JPanel construirPanelGrafica() {
-        JPanel panel = new JPanel(new BorderLayout());
+        JPanel panel = new JPanel(new BorderLayout(0, 15));
         panel.setBackground(COLOR_PANEL_CLARO);
-        panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        panel.setBorder(BORDE_TARJETA);
 
-        ResultadoOrdenamiento mejor = obtenerMejor();
+        JLabel titulo = new JLabel("Comparativa de Rendimiento");
+        titulo.setFont(new Font("SansSerif", Font.BOLD, 20));
+        titulo.setForeground(COLOR_TEXTO_OSCURO);
 
+        CardLayout layoutTarjetas = new CardLayout();
+        JPanel panelTarjetas = new JPanel(layoutTarjetas);
+        panelTarjetas.setOpaque(false);
+        panelTarjetas.add(construirGraficaMetrica("Tiempo en segundos",
+                r -> r.getTiempoMs() / 1000.0), "TIEMPO");
+        panelTarjetas.add(construirGraficaMetrica("Numero de comparaciones",
+                ResultadoOrdenamiento::getComparaciones), "COMPARACIONES");
+        panelTarjetas.add(construirGraficaMetrica("Numero de intercambios",
+                ResultadoOrdenamiento::getIntercambios), "INTERCAMBIOS");
+
+        JPanel panelNorte = new JPanel(new BorderLayout(0, 12));
+        panelNorte.setOpaque(false);
+        panelNorte.add(titulo, BorderLayout.NORTH);
+        panelNorte.add(construirSelectorMetricas(layoutTarjetas, panelTarjetas), BorderLayout.SOUTH);
+
+        panel.add(panelNorte, BorderLayout.NORTH);
+        panel.add(panelTarjetas, BorderLayout.CENTER);
+        return panel;
+    }
+
+    /** Fila de botones tipo "segmented control" para elegir que metrica graficar. */
+    private JPanel construirSelectorMetricas(CardLayout layoutTarjetas, JPanel panelTarjetas) {
+        JPanel selector = new JPanel(new GridLayout(1, 3, 8, 0));
+        selector.setOpaque(false);
+
+        JToggleButton botonTiempo = crearBotonMetrica("Tiempo");
+        JToggleButton botonComparaciones = crearBotonMetrica("Comparaciones");
+        JToggleButton botonIntercambios = crearBotonMetrica("Intercambios");
+
+        ButtonGroup grupo = new ButtonGroup();
+        grupo.add(botonTiempo);
+        grupo.add(botonComparaciones);
+        grupo.add(botonIntercambios);
+
+        botonTiempo.addActionListener(e -> layoutTarjetas.show(panelTarjetas, "TIEMPO"));
+        botonComparaciones.addActionListener(e -> layoutTarjetas.show(panelTarjetas, "COMPARACIONES"));
+        botonIntercambios.addActionListener(e -> layoutTarjetas.show(panelTarjetas, "INTERCAMBIOS"));
+
+        selector.add(botonTiempo);
+        selector.add(botonComparaciones);
+        selector.add(botonIntercambios);
+
+        botonTiempo.setSelected(true); // metrica visible por defecto al abrir la ventana
+        return selector;
+    }
+
+    /** Boton tipo "pastilla" que se pinta con el azul de acento cuando esta seleccionado. */
+    private JToggleButton crearBotonMetrica(String texto) {
+        JToggleButton boton = new JToggleButton(texto);
+        boton.setFont(new Font("SansSerif", Font.BOLD, 12));
+        boton.setForeground(COLOR_TEXTO_OSCURO);
+        boton.setBackground(COLOR_PANEL_CLARO);
+        boton.setFocusPainted(false);
+        boton.setBorder(BorderFactory.createLineBorder(COLOR_PANEL_AZUL, 1));
+        boton.addItemListener(e -> boton.setBackground(
+                boton.isSelected() ? COLOR_PANEL_AZUL : COLOR_PANEL_CLARO));
+        return boton;
+    }
+
+    /** Construye la grafica de barras de una metrica, resaltando su mejor valor (el mas bajo). */
+    private ChartPanel construirGraficaMetrica(String etiquetaEje,
+                                                ToDoubleFunction<ResultadoOrdenamiento> extractorValor) {
         DefaultCategoryDataset dataset = new DefaultCategoryDataset();
         for (ResultadoOrdenamiento r : resultados) {
-            // Se grafica en segundos (tiempoMs / 1000) para que el eje sea legible
-            dataset.addValue(r.getTiempoMs() / 1000.0, "Tiempo", r.getNombreAlgoritmo());
+            dataset.addValue(extractorValor.applyAsDouble(r), "Valor", r.getNombreAlgoritmo());
         }
 
+        ResultadoOrdenamiento mejorEnMetrica = resultados.get(0);
+        for (ResultadoOrdenamiento r : resultados) {
+            if (extractorValor.applyAsDouble(r) < extractorValor.applyAsDouble(mejorEnMetrica)) {
+                mejorEnMetrica = r;
+            }
+        }
+        final String nombreMejorEnMetrica = mejorEnMetrica.getNombreAlgoritmo();
+
         JFreeChart grafica = ChartFactory.createBarChart(
-                "Comparativa de Rendimiento",
                 null,
-                "Tiempo en segundos",
+                null,
+                etiquetaEje,
                 dataset,
                 PlotOrientation.VERTICAL,
                 false,
@@ -188,9 +274,7 @@ public class VentanaResultados extends JFrame {
                 false
         );
 
-        // Fondo de la grafica y del titulo, en la misma familia de colores del panel
         grafica.setBackgroundPaint(COLOR_PANEL_CLARO);
-        grafica.getTitle().setPaint(COLOR_TEXTO_OSCURO);
 
         CategoryPlot plot = grafica.getCategoryPlot();
         plot.setBackgroundPaint(COLOR_PANEL_CLARO);
@@ -200,12 +284,12 @@ public class VentanaResultados extends JFrame {
         plot.getRangeAxis().setLabelPaint(COLOR_TEXTO_OSCURO);
 
         // Renderer personalizado: pinta con el azul de acento SOLO la barra del
-        // algoritmo ganador; el resto usa un tostado calido de la misma paleta.
+        // algoritmo ganador de esta metrica; el resto usa un tostado calido de la misma paleta.
         BarRenderer renderer = new BarRenderer() {
             @Override
             public Paint getItemPaint(int fila, int columna) {
                 String nombreCategoria = (String) dataset.getColumnKey(columna);
-                return nombreCategoria.equals(mejor.getNombreAlgoritmo())
+                return nombreCategoria.equals(nombreMejorEnMetrica)
                         ? COLOR_BARRA_MEJOR
                         : COLOR_BARRA_NORMAL;
             }
@@ -217,8 +301,6 @@ public class VentanaResultados extends JFrame {
         ChartPanel chartPanel = new ChartPanel(grafica);
         chartPanel.setBackground(COLOR_PANEL_CLARO);
         chartPanel.setPreferredSize(new Dimension(500, 500));
-
-        panel.add(chartPanel, BorderLayout.CENTER);
-        return panel;
+        return chartPanel;
     }
 }

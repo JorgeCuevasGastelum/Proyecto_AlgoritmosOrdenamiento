@@ -7,8 +7,8 @@
     <packaging>jar</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.release>25</maven.compiler.release>
-        <exec.mainClass>com.mycompany.proyectoanalisis_algoritmosordenamiento.ProyectoAnalisis_AlgoritmosOrdenamiento</exec.mainClass>
+        <maven.compiler.release>23</maven.compiler.release>
+        <exec.mainClass>proyecto.Main</exec.mainClass>
     </properties>
     <!--
         JFreeChart se usa para dibujar la grafica de barras comparativa.
@@ -29,7 +29,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.1</version>
                 <configuration>
-                    <mainClass>com.ordenamiento.Main</mainClass>
+                    <mainClass>proyecto.Main</mainClass>
                 </configuration>
             </plugin>
             <plugin>
@@ -39,7 +39,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.ordenamiento.Main</mainClass>
+                            <mainClass>proyecto.Main</mainClass>
                             <addClasspath>true</addClasspath>
                             <classpathPrefix>lib/</classpathPrefix>
                         </manifest>

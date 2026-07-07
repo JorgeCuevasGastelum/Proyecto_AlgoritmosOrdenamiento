@@ -16,6 +16,7 @@ import modelos.GeneradorDatos;
 import modelos.ResultadoOrdenamiento;
 
 import javax.swing.*;
+import javax.swing.border.Border;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.util.ArrayList;
@@ -37,6 +38,13 @@ public class VentanaPrincipal extends JFrame {
     private static final Color COLOR_PANEL_AZUL = new Color(0xC9, 0xDF, 0xE9);
     private static final Color COLOR_TEXTO_OSCURO = new Color(0x3D, 0x28, 0x17);
     private static final Color COLOR_COMBO_OSCURO = new Color(0x24, 0x24, 0x33);
+
+    // Borde tipo "tarjeta": la misma linea azul de acento que ya se usa en
+    // botones y encabezados, para que ambos paneles (parametros y algoritmos)
+    // se vean como tarjetas consistentes entre si.
+    private static final Border BORDE_TARJETA = BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(COLOR_PANEL_AZUL, 2),
+            new EmptyBorder(20, 20, 20, 20));
 
     private static final Font FUENTE_TITULO = new Font("SansSerif", Font.BOLD, 30);
     private static final Font FUENTE_SUBTITULO = new Font("SansSerif", Font.BOLD, 16);
@@ -83,10 +91,26 @@ public class VentanaPrincipal extends JFrame {
     }
 
     private JPanel construirPanelCentral() {
-        JPanel panel = new JPanel(new GridLayout(1, 2, 25, 0));
+        // GridBagLayout en vez de GridLayout(1,2) para poder darle mas ancho
+        // al panel de algoritmos (58%) que al de parametros (42%), ya que
+        // tiene 6 opciones que necesitan mas espacio para respirar.
+        JPanel panel = new JPanel(new GridBagLayout());
         panel.setOpaque(false);
-        panel.add(construirPanelParametros());
-        panel.add(construirPanelAlgoritmos());
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.BOTH;
+        gbc.weighty = 1;
+
+        gbc.gridx = 0;
+        gbc.weightx = 0.42;
+        gbc.insets = new Insets(0, 0, 0, 12);
+        panel.add(construirPanelParametros(), gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 0.58;
+        gbc.insets = new Insets(0, 12, 0, 0);
+        panel.add(construirPanelAlgoritmos(), gbc);
+
         return panel;
     }
 
@@ -94,30 +118,48 @@ public class VentanaPrincipal extends JFrame {
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBackground(COLOR_PANEL_CLARO);
-        panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        panel.setBorder(BORDE_TARJETA);
 
         JLabel titulo = new JLabel("PARAMETROS");
         titulo.setFont(FUENTE_SUBTITULO);
         titulo.setForeground(COLOR_TEXTO_OSCURO);
         titulo.setAlignmentX(Component.LEFT_ALIGNMENT);
 
+        // Fila "TAMAÑO DEL ARREGLO:  3,657" en un solo renglon (etiqueta a la
+        // izquierda, valor a la derecha) usando BorderLayout. Antes el valor
+        // era una JLabel aparte centrada con BoxLayout, lo que hacia que su
+        // posicion "brincara" horizontalmente segun cuantos digitos tuviera
+        // el numero (ej. "10" vs "10,000"); con WEST/EAST fijo el valor
+        // siempre queda pegado al borde derecho, sin importar su ancho.
+        JPanel filaTamano = new JPanel(new BorderLayout());
+        filaTamano.setOpaque(false);
+        filaTamano.setAlignmentX(Component.LEFT_ALIGNMENT);
+        // OJO: BorderLayout reporta maximumLayoutSize sin limite, por lo que
+        // SIEMPRE hay que fijarle un maximumSize explicito aqui o BoxLayout
+        // lo estira verticalmente. La altura debe alcanzar para el contenido
+        // (~21px) MAS el padding inferior (8px); el espacio de arriba se da
+        // por separado con un vertical strut para no reducir el area util.
+        filaTamano.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        filaTamano.setBorder(new EmptyBorder(0, 0, 8, 0));
+
         JLabel labelTamano = new JLabel("TAMAÑO DEL ARREGLO:");
         labelTamano.setFont(FUENTE_NORMAL);
         labelTamano.setForeground(COLOR_TEXTO_OSCURO);
-        labelTamano.setAlignmentX(Component.LEFT_ALIGNMENT);
-        labelTamano.setBorder(new EmptyBorder(25, 0, 5, 0));
 
-        labelTamanoValor = new JLabel(String.valueOf(TAMANO_MINIMO), SwingConstants.CENTER);
+        labelTamanoValor = new JLabel(String.valueOf(TAMANO_MINIMO));
         labelTamanoValor.setFont(new Font("SansSerif", Font.BOLD, 16));
         labelTamanoValor.setForeground(COLOR_TEXTO_OSCURO);
-        labelTamanoValor.setAlignmentX(Component.CENTER_ALIGNMENT);
+        labelTamanoValor.setHorizontalAlignment(SwingConstants.RIGHT);
+
+        filaTamano.add(labelTamano, BorderLayout.WEST);
+        filaTamano.add(labelTamanoValor, BorderLayout.EAST);
 
         // Empieza en el valor mínimo (10) en vez de a la mitad del rango
         sliderTamano = new JSlider(TAMANO_MINIMO, TAMANO_MAXIMO, TAMANO_MINIMO);
         sliderTamano.setOpaque(false);
         sliderTamano.setAlignmentX(Component.LEFT_ALIGNMENT);
         sliderTamano.addChangeListener(e ->
-                labelTamanoValor.setText(String.valueOf(sliderTamano.getValue())));
+                labelTamanoValor.setText(String.format("%,d", sliderTamano.getValue())));
 
         // Etiquetas solo en los extremos: 10 y 10,000.
         // No usamos setMajorTickSpacing aqui porque con un rango de
@@ -152,8 +194,8 @@ public class VentanaPrincipal extends JFrame {
         comboEscenario.setMaximumSize(new Dimension(Integer.MAX_VALUE, 35));
 
         panel.add(titulo);
-        panel.add(labelTamano);
-        panel.add(labelTamanoValor);
+        panel.add(Box.createVerticalStrut(25));
+        panel.add(filaTamano);
         panel.add(sliderTamano);
         panel.add(labelEscenario);
         panel.add(comboEscenario);
@@ -162,8 +204,13 @@ public class VentanaPrincipal extends JFrame {
     }
 
     private JPanel construirPanelAlgoritmos() {
-        JPanel contenedor = new JPanel(new BorderLayout());
-        contenedor.setOpaque(false);
+        JPanel contenedor = new JPanel(new BorderLayout(0, 15));
+        // Mismo fondo y borde que el panel de PARAMETROS, para que las dos
+        // tarjetas se vean como parte de un mismo conjunto (antes este panel
+        // quedaba "hueco", dejando ver el fondo crema de la ventana detras
+        // de los checkboxes en vez de una tarjeta propia).
+        contenedor.setBackground(COLOR_PANEL_CLARO);
+        contenedor.setBorder(BORDE_TARJETA);
 
         JLabel titulo = new JLabel("ALGORITMOS A EVALUAR:", SwingConstants.CENTER);
         titulo.setFont(FUENTE_SUBTITULO);
@@ -172,9 +219,8 @@ public class VentanaPrincipal extends JFrame {
         titulo.setBackground(COLOR_PANEL_AZUL);
         titulo.setBorder(new EmptyBorder(15, 15, 15, 15));
 
-        JPanel panelChecks = new JPanel(new GridLayout(3, 2, 15, 15));
+        JPanel panelChecks = new JPanel(new GridLayout(3, 2, 18, 20));
         panelChecks.setOpaque(false);
-        panelChecks.setBorder(new EmptyBorder(20, 10, 10, 10));
 
         checkBubble = crearCheckBox("Bubble Sort");
         checkInsertion = crearCheckBox("Insertion Sort");
@@ -197,9 +243,10 @@ public class VentanaPrincipal extends JFrame {
 
     private JCheckBox crearCheckBox(String texto) {
         JCheckBox check = new JCheckBox(texto);
-        check.setFont(FUENTE_NORMAL);
+        check.setFont(new Font("SansSerif", Font.PLAIN, 16));
         check.setForeground(COLOR_TEXTO_OSCURO);
         check.setOpaque(false);
+        check.setFocusPainted(false);
         return check;
     }
 
